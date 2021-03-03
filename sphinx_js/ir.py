@@ -170,8 +170,7 @@ class TopLevel:
     examples: List[str]
     #: List of paths to also refer the reader to
     see_alsos: List[str]
-    #: Explicitly documented sub-properties of the object, a la jsdoc's
-    #: @properties
+    #: Explicitly documented sub-properties of the object, a la jsdoc's @properties
     properties: List['Attribute']
     #: None if not exported for use by outside code. Otherwise, the Sphinx
     #: dotted path to the module it is exported from, e.g. 'foo.bar'
@@ -179,7 +178,17 @@ class TopLevel:
 
 
 @dataclass
-class Attribute(TopLevel, _Member):
+class _HasMembers:
+    """An IR object that can contain members and extend other types"""
+    #: Class members, concretized ahead of time for simplicity. (Otherwise,
+    #: we'd have to pass the doclets_by_class map in and keep it around, along
+    #: with a callable that would create the member IRs from it on demand.)
+    #: Does not include the default constructor.
+    members: List[Union['Function', 'Attribute']]
+
+
+@dataclass
+class Attribute(TopLevel, _Member, _HasMembers):
     """A property of an object
 
     These are called attributes to match up with Sphinx's autoattribute
@@ -192,32 +201,25 @@ class Attribute(TopLevel, _Member):
 
 @dataclass
 class Function(TopLevel, _Member):
-    """A function or a method of a class"""
     params: List[Param]
     exceptions: List[Exc]  # noqa: Linter is buggy.
     returns: List[Return]
 
 
 @dataclass
-class _MembersAndSupers:
-    """An IR object that can contain members and extend other types"""
-    #: Class members, concretized ahead of time for simplicity. (Otherwise,
-    #: we'd have to pass the doclets_by_class map in and keep it around, along
-    #: with a callable that would create the member IRs from it on demand.)
-    #: Does not include the default constructor.
-    members: List[Union[Function, Attribute]]
+class _HasSupers:
     #: Objects this one extends: for example, superclasses of a class or
     #: superinterfaces of an interface
     supers: List[Pathname]
 
 
 @dataclass
-class Interface(TopLevel, _MembersAndSupers):
+class Interface(TopLevel, _HasSupers, _HasMembers):
     """An interface, a la TypeScript"""
 
 
 @dataclass
-class Class(TopLevel, _MembersAndSupers):
+class Class(TopLevel, _HasSupers, _HasMembers):
     #: The default constructor for this class. Absent if the constructor is
     #: inherited.
     constructor: Optional[Function]

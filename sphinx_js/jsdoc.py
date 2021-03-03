@@ -124,8 +124,7 @@ class Analyzer:
             members=members,
             **top_level_properties(doclet, full_path))
 
-    @staticmethod
-    def _doclet_as_function(doclet, full_path):
+    def _doclet_as_function(self, doclet, full_path):
         return Function(
             description=description(doclet),
             exported_from=None,
@@ -138,8 +137,18 @@ class Analyzer:
             params=params_to_ir(doclet),
             **top_level_properties(doclet, full_path))
 
-    @staticmethod
-    def _doclet_as_attribute(doclet, full_path):
+    def _doclet_as_attribute(self, doclet, full_path):
+        members = []
+        member_doclets = self._doclets_by_class.get(tuple(full_path), None)
+        for member_doclet in (member_doclets or []):
+            kind = member_doclet.get('kind')
+            member_full_path = full_path_segments(member_doclet, self._base_dir)
+            # Typedefs should still fit into function-shaped holes:
+            doclet_as_whatever = self._doclet_as_function if (
+                        kind == 'function' or kind == 'typedef') else self._doclet_as_attribute
+            member = doclet_as_whatever(member_doclet, member_full_path)
+            members.append(member)
+
         return Attribute(
             description=description(doclet),
             exported_from=None,
@@ -148,6 +157,7 @@ class Analyzer:
             is_static=False,
             is_private=is_private(doclet),
             type=get_type(doclet),
+            members=members,
             **top_level_properties(doclet, full_path)
         )
 
@@ -298,7 +308,9 @@ def properties_to_ir(properties):
                       is_abstract=False,
                       is_optional=False,
                       is_static=False,
-                      is_private=False)
+                      is_private=False,
+                      members=[],  # FIXME should ideally retrieve submembers for properties too...
+                      )
             for p in properties]
 
 

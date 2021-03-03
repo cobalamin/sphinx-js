@@ -12,6 +12,10 @@
      {{ description|indent(3) }}
    {%- endif %}
 
+   {% if members -%}
+     {{ members|indent(3) }}
+   {%- endif %}
+
    {{ common.examples(examples)|indent(3) }}
 
    {{ content|indent(3) }}

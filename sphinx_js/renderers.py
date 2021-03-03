@@ -19,7 +19,7 @@ class JsRenderer(object):
     Provides an inversion-of-control framework for rendering and bridges us
     from the hidden, closed-over JsDirective subclasses to top-level classes
     that can see and use each other. Handles parsing of a single, all-consuming
-    argument that consists of a JS/TS entity reference and an optional formal
+    argument that consists of a JS entity reference and an optional formal
     parameter list.
 
     """
@@ -68,7 +68,7 @@ class JsRenderer(object):
             obj = self._app._sphinxjs_analyzer.get_object(
                 self._partial_path, self._renderer_type)
         except SuffixNotFound as exc:
-            raise SphinxError('No documentation was found for object "%s" or any path ending with that.'
+            raise SphinxError('No JSDoc documentation was found for object "%s" or any path ending with that.'
                               % ''.join(exc.segments))
         except SuffixAmbiguous as exc:
             raise SphinxError('More than one object matches the path suffix "%s". Candidate paths have these segments in front: %s'
@@ -164,6 +164,16 @@ class JsRenderer(object):
                     # restructuredtext.html#field-lists.
                     yield [rst.escape(h) for h in heads], unwrapped(tail)
 
+    def rst_for_nested(self, obj, parent_obj=None):
+        renderer = (AutoFunctionRenderer if isinstance(obj, Function)
+                    else AutoAttributeRenderer)
+        name = obj.name if parent_obj is None else (parent_obj.name + '.' + obj.name)
+        result = renderer(self._directive, self._app, arguments=['dummy']).rst(
+            [name],
+            obj,
+            use_short_name=False)
+        return result
+
 
 class AutoFunctionRenderer(JsRenderer):
     _template = 'function.rst'
@@ -236,23 +246,6 @@ class AutoClassRenderer(JsRenderer):
                     if 'members' in self._options else '')
 
     def _members_of(self, obj, include, exclude, should_include_private):
-        """Return RST describing the members of a given class.
-
-        :arg obj Class: The class we're documenting
-        :arg include: List of names of members to include. If empty, include
-            all.
-        :arg exclude: Set of names of members to exclude
-        :arg should_include_private: Whether to include private members
-
-        """
-        def rst_for(obj):
-            renderer = (AutoFunctionRenderer if isinstance(obj, Function)
-                        else AutoAttributeRenderer)
-            return renderer(self._directive, self._app, arguments=['dummy']).rst(
-                [obj.name],
-                obj,
-                use_short_name=False)
-
         def members_to_include(include):
             """Return the members that should be included (before excludes and
             access specifiers are taken into account).
@@ -295,7 +288,7 @@ class AutoClassRenderer(JsRenderer):
             return included_members
 
         return '\n\n'.join(
-            rst_for(member) for member in members_to_include(include)
+            self.rst_for_nested(member, parent_obj=None) for member in members_to_include(include)
             if (not member.is_private
                 or (member.is_private and should_include_private))
             and member.name not in exclude)
@@ -305,6 +298,17 @@ class AutoAttributeRenderer(JsRenderer):
     _template = 'attribute.rst'
     _renderer_type = 'attribute'
 
+    """Return RST describing the members of a given class.
+
+    :arg obj Class: The class we're documenting
+    :arg include: List of names of members to include. If empty, include
+        all.
+    :arg exclude: Set of names of members to exclude
+    :arg should_include_private: Whether to include private members
+
+    """
+
+
     def _template_vars(self, name, obj):
         return dict(
             name=name,
@@ -313,6 +317,9 @@ class AutoAttributeRenderer(JsRenderer):
             is_optional=obj.is_optional,
             see_also=obj.see_alsos,
             examples=obj.examples,
+            members='\n\n'.join(
+                self.rst_for_nested(member, parent_obj=obj)
+                for member in obj.members),
             type=obj.type,
             content='\n'.join(self._content))
 
